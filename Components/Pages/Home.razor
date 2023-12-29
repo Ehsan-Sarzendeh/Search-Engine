@@ -11,16 +11,20 @@
 
 <div class="text-center">
     <div class="p-2">
-        <input class="form-control form-control-lg w-50 mx-auto mt-4" style="border-radius: 15px" placeholder="هر چه دل تنگت میخواهد بگو ..." @bind-value="_query" />
+        <input class="form-control form-control-lg w-50 mx-auto mt-4" style="border-radius: 12px" placeholder="هر چه دل تنگت میخواهد بگو ..." @bind-value="_query" />
     </div>
     <div class="p-2">
-        <button class="btn btn-primary btn-lg" style="border-radius: 15px" @onclick="Search">جستجو</button>
+        <button class="btn btn-primary btn-lg" style="border-radius: 12px" @onclick="Search">جستجو</button>
     </div>
 </div>
-    
+
 <div id="searchResults">
     @if (_paginateDocs != null && _paginateDocs.Any())
     {
+        @if (_searchResult.Corrected)
+        {
+            <p class="searchResultExcerpt" style="color: red; font-weight: bold">آیا منظور شما این بود:  @_searchResult.SearchQuery</p>
+        }
         <p class="searchResultExcerpt">@_searchResult.Count نتیجه (@_searchResult.Time ثانیه) </p>
 
         <ul>
@@ -29,20 +33,22 @@
                 <li class="searchItem">
                     <a href="@result.Url" target="_blank" class="searchResultLink">@result.Title</a>
                     <p class="searchResultExcerpt">@result.Content</p>
+                    <p class="searchResultExcerpt">@result.We</p>
+
                 </li>
             }
         </ul>
 
         <div class="pagination">
             <ul>
-                <button @onclick="Previous">قبل</button>
-                <button @onclick="Next">بعد</button>
+                <button class="btn btn-secondary" style="border-radius: 7px" @onclick="Previous">قبل</button>
+                <button class="btn btn-secondary" style="border-radius: 7px" @onclick="Next">بعد</button>
             </ul>
         </div>
     }
     else if (_paginateDocs != null && !_paginateDocs.Any())
     {
-        <p>!نتیجه ای یافت نشد</p>
+        <p class="fs-4" style="color: red; font-weight: bold; text-align: center; line-height: 100px;">نتیجه ای یافت نشد</p>
     }
 </div>
 
@@ -64,6 +70,8 @@
     {
         if (string.IsNullOrEmpty(_query)) return;
 
+        _paginateDocs = null;
+
         _searchResult = SearchService.Search(_query);
 
         CalcPaginate();
@@ -73,6 +81,7 @@
     {
         if (_searchResult.Docs == null || _searchResult.Docs.Count == 0)
         {
+            _paginateDocs = new List<Doc>();
             _totalPages = 0;
             return;
         }

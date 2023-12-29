@@ -2,38 +2,38 @@
 
 public class Index
 {
-    private readonly Dictionary<string, PostingList> _index;
+    public Dictionary<string, PostingList> IndexDic { get; set; }
 
     public Index()
     {
-        _index = new Dictionary<string, PostingList>();
+        IndexDic = new Dictionary<string, PostingList>();
     }
 
-    public void Add(string word, Doc infile, Weight weight)
+    public void Add(string word, string url, Weight weight)
     {
-        if (_index.ContainsKey(word))
+        if (IndexDic.ContainsKey(word))
         {
-            var postingList = _index[word];
-            postingList!.Add(infile, weight);
+            var postingList = IndexDic[word];
+            postingList!.Add(url, weight);
         }
         else
         {
             var postingList = new PostingList();
-            postingList.Add(infile, weight);
-            _index.Add(word, postingList);
+            postingList.Add(url, weight);
+            IndexDic.Add(word, postingList);
         }
     }
 
-    public Dictionary<Doc, int> Search(string searchWord)
+    public Dictionary<string, int> Search(string searchWord)
     {
-        if (!_index.ContainsKey(searchWord)) return null;
+        if (!IndexDic.ContainsKey(searchWord)) return null;
 
-        var postingList = _index[searchWord];
+        var postingList = IndexDic[searchWord];
         return postingList!.InFiles();
     }
 
     public string[] Words()
     {
-        return _index.Keys.ToArray();
+        return IndexDic.Keys.ToArray();
     }
 }

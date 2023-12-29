@@ -1,30 +1,30 @@
-﻿using System.Collections;
-
-namespace SearchEngine.Models;
+﻿namespace SearchEngine.Models;
 
 public class PostingList
 {
-    private Dictionary<Doc, int> Docs { get; set; }
+    public int Repetition { get; set; }
+    public Dictionary<string, int> Docs { get; set; }
 
     public PostingList()
     {
-        Docs = new Dictionary<Doc, int>();
+        Docs = new Dictionary<string, int>();
     }
 
-    public void Add(Doc infile, Weight weight)
+    public void Add(string url, Weight weight)
     {
-        if (Docs.ContainsKey(infile))
+        Repetition += 1;
+        if (Docs.ContainsKey(url))
         {
-            var currentWeight = (int)Docs[infile]!;
-            Docs[infile] = currentWeight + (int)weight;
+            var currentWeight = Docs[url]!;
+            Docs[url] = currentWeight + (int)weight;
         }
         else
         {
-            Docs.Add(infile, (int)weight);
+            Docs.Add(url, (int)weight);
         }
     }
 
-    public Dictionary<Doc, int> InFiles()
+    public Dictionary<string, int> InFiles()
     {
         return Docs;
     }
@@ -32,6 +32,6 @@ public class PostingList
 
 public enum Weight
 {
-    Title = 3,
+    Title = 200,
     Content = 1
 }

@@ -1,9 +1,6 @@
 ﻿using System.Diagnostics;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml;
-using HtmlAgilityPack;
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Newtonsoft.Json;
 using SearchEngine.Dto;
 using SearchEngine.Models;
@@ -14,6 +11,7 @@ namespace SearchEngine.Services;
 public class SearchService
 {
     private Index _index;
+    private Dictionary<string, Doc> _docs;
 
     public SearchService()
     {
@@ -25,21 +23,30 @@ public class SearchService
     {
         if (_index != null) return;
 
-        Indexing();
-
-        // if (File.Exists("index.json")) LoadIndex();
-        // else Indexing();
+        if (File.Exists("index.json")) LoadIndex();
+        else Indexing();
     }
     private void LoadIndex()
     {
-        var json = File.ReadAllText("index.json");
-        _index = JsonConvert.DeserializeObject<Index>(json);
+        var watch = Stopwatch.StartNew();
+
+        var index = File.ReadAllText("index.json");
+        _index = JsonConvert.DeserializeObject<Index>(index);
+
+        var doc = File.ReadAllText("doc.json");
+        _docs = JsonConvert.DeserializeObject<Dictionary<string, Doc>>(doc);
+
+        watch.Stop();
+
+        Console.WriteLine($"LoadIndex Time: {watch.ElapsedMilliseconds / 1000d} seconds");
     }
     private void Indexing()
     {
         var watch = Stopwatch.StartNew();
 
         _index = new Index();
+        _docs = new Dictionary<string, Doc>();
+
 
         var xmlDoc = new XmlDocument();
         xmlDoc.Load("output.xml");
@@ -53,9 +60,11 @@ public class SearchService
             docTitle = NormalizeString(docTitle);
 
             var docDescription = Regex.Match(html, "<meta name=\"description\" content=\"([^<]*)\" />", RegexOptions.IgnoreCase | RegexOptions.Multiline).Groups[1].Value;
+            if (string.IsNullOrEmpty(docDescription))
+                docDescription = Regex.Match(html, "<meta name=\"description\" content=\"([^<]*)\"/>", RegexOptions.IgnoreCase | RegexOptions.Multiline).Groups[1].Value;
             docDescription = NormalizeString(docDescription);
 
-            html = RemoveTags(html, "title", "script", "noscript");
+            html = RemoveTags(html, "title", "script", "noscript", "style");
             var htmlContent = NormalizeHtml(html);
 
             if (string.IsNullOrEmpty(docDescription))
@@ -69,26 +78,32 @@ public class SearchService
             }
 
             var doc = new Doc(url, docTitle, docDescription);
+            _docs.Add(url, doc);
 
-            foreach (var word in docTitle.Split(' '))
+            foreach (var word in docTitle.ToLower().Split(' '))
             {
-                if (string.IsNullOrEmpty(word.Trim()) || string.IsNullOrWhiteSpace(word.Trim())) continue;
-                _index.Add(word, doc, Weight.Title);
+                var trimWord = word.Trim();
+                if (string.IsNullOrEmpty(trimWord) || string.IsNullOrWhiteSpace(trimWord)) continue;
+                _index.Add(trimWord, url, Weight.Title);
             }
 
-            foreach (var word in htmlContent.Split(' '))
+            foreach (var word in htmlContent.ToLower().Split(' '))
             {
-                if (string.IsNullOrEmpty(word.Trim()) || string.IsNullOrWhiteSpace(word.Trim())) continue;
-                _index.Add(word, doc, Weight.Content);
+                var trimWord = word.Trim();
+                if (string.IsNullOrEmpty(trimWord) || string.IsNullOrWhiteSpace(trimWord)) continue;
+                _index.Add(trimWord, url, Weight.Content);
             }
         }
 
         watch.Stop();
 
-        Console.WriteLine($"Indexing time: {watch.ElapsedMilliseconds / 1000d} seconds");
+        Console.WriteLine($"Indexing Time: {watch.ElapsedMilliseconds / 1000d} seconds");
 
-        var json = JsonConvert.SerializeObject(_index);
-        File.WriteAllText("index.json", json);
+        var indexJson = JsonConvert.SerializeObject(_index);
+        File.WriteAllText("index.json", indexJson);
+
+        var docJson = JsonConvert.SerializeObject(_docs);
+        File.WriteAllText("doc.json", docJson);
     }
     private static string NormalizeHtml(string strHtml)
     {
@@ -109,7 +124,6 @@ public class SearchService
 
         return strHtml;
     }
-
     private static string NormalizeString(string input)
     {
         const string pattern = "[\\~#%&*{}/:;,.،!()<>«»?|\"-]";
@@ -127,18 +141,18 @@ public class SearchService
             .Replace(" ", " ")
             .Replace("‌", " ")
             .Replace("|", "")
-            .Replace("x200C", "");
+            .Replace("گوشی شاپ", "")
+            .Replace("x200C", "")
+            .Replace("x26A1", "");
 
         return input;
     }
-
     private static string RemoveTags(string html, params string[] tags)
     {
         return tags
             .Aggregate(html, (current, tag) => new Regex($@"<{tag}[^>]*>[\s\S]*?</{tag}>")
             .Replace(current, ""));
     }
-
     #endregion
 
     #region Search
@@ -149,12 +163,13 @@ public class SearchService
         var regex = new Regex(@"\s+");
         query = regex.Replace(query.Trim(), " ");
         query = NormalizeString(query);
-        var words = query.Split(' ');
+        var words = query.ToLower().Split(' ');
 
         #region Search In Index
 
-        var searchResults = new Dictionary<Doc, int>[words.Length];
+        var searchResults = new Dictionary<string, int>[words.Length];
 
+        var corrected = false;
         var allMatch = true;
         int indexOfShortestResultSet = -1, lengthOfShortestResultSet = -1;
 
@@ -168,8 +183,8 @@ public class SearchService
                 var properWord =
                     (from word in _index.Words()
                      let distance = StringDistance(word, words[i])
-                     where distance <= 2
-                     orderby distance
+                     where distance <= 3
+                     orderby distance, words.Length descending 
                      select word)
                     .ToList().FirstOrDefault();
 
@@ -177,6 +192,8 @@ public class SearchService
                 {
                     words[i] = properWord;
                     postingList = _index.Search(words[i]);
+
+                    corrected = true;
                 }
 
                 if (postingList is null)
@@ -201,13 +218,13 @@ public class SearchService
 
         #region Subscribing
 
-        var finalResult = new Dictionary<Doc, int>();
+        var finalResult = new Dictionary<string, int>();
 
         if (allMatch)
         {
             var shortResultsSet = searchResults[indexOfShortestResultSet];
 
-            foreach (var (doc, docWeight) in shortResultsSet)
+            foreach (var (docUrl, docWeight) in shortResultsSet)
             {
                 int matchCount = 0, weight = 0;
 
@@ -222,9 +239,9 @@ public class SearchService
                     {
                         var searchResultsIndex = searchResults[i];
 
-                        foreach (var (indexDoc, indexWeight) in searchResultsIndex)
+                        foreach (var (indexUrl, indexWeight) in searchResultsIndex)
                         {
-                            if (doc != indexDoc) continue;
+                            if (docUrl != indexUrl) continue;
 
                             matchCount += 1;
                             weight += indexWeight;
@@ -236,8 +253,10 @@ public class SearchService
 
                 if (matchCount != words.Length) continue;
 
-                if (!finalResult.ContainsKey(doc))
-                    finalResult.Add(doc, weight);
+                if (!finalResult.ContainsKey(docUrl))
+                {
+                    finalResult.Add(docUrl, weight);
+                }
             }
         }
 
@@ -245,7 +264,13 @@ public class SearchService
 
         var docs = finalResult
             .OrderByDescending(x => x.Value)
-            .Select(x => x.Key)
+            .Select(x => new Doc
+            {
+                Url = x.Key,
+                Title = _docs[x.Key].Title,
+                Content = _docs[x.Key].Content,
+                We = x.Value
+            })
             .ToList();
 
         watch.Stop();
@@ -255,7 +280,8 @@ public class SearchService
             Docs = docs,
             SearchQuery = string.Join(' ', words),
             Count = docs.Count,
-            Time = watch.ElapsedMilliseconds / 1000d
+            Time = watch.ElapsedMilliseconds / 1000d,
+            Corrected = corrected
         };
     }
     private static int StringDistance(string s, string t)
@@ -264,10 +290,12 @@ public class SearchService
         if (s == t) return 0;
         if (s.Length == 0) return t.Length;
         if (t.Length == 0) return s.Length;
+
         // Initialize the distance matrix
         var distance = new int[s.Length + 1, t.Length + 1];
         for (var i = 0; i <= s.Length; i++) distance[i, 0] = i;
         for (var j = 0; j <= t.Length; j++) distance[0, j] = j;
+
         // Calculate the distance
         for (var i = 1; i <= s.Length; i++)
         {

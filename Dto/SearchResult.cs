@@ -8,4 +8,5 @@ public class SearchResult
     public string SearchQuery { get; set; }
     public int Count { get; set; }
     public double Time { get; set; }
+    public bool Corrected { get; set; }
 }
