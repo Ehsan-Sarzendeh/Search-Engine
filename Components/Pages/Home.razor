@@ -11,8 +11,8 @@
 
 <div class="text-center">
     <div class="p-2">
-        <input class="form-control form-control-lg w-50 mx-auto mt-4" style="border-radius: 12px" placeholder="هر چه دل تنگت میخواهد بگو ..." @bind-value="_query" />
-    </div>
+        <input class="form-control form-control-lg w-50 mx-auto mt-4" style="border-radius: 12px" placeholder="دنبال چی می گردی؟" @bind-value="_query" />
+     </div>
     <div class="p-2">
         <button class="btn btn-primary btn-lg" style="border-radius: 12px" @onclick="Search">جستجو</button>
     </div>
@@ -25,15 +25,26 @@
         {
             <p class="searchResultExcerpt" style="color: red; font-weight: bold">آیا منظور شما این بود:  @_searchResult.SearchQuery</p>
         }
-        <p class="searchResultExcerpt">@_searchResult.Count نتیجه (@_searchResult.Time ثانیه) </p>
+        <p class="searchResultExcerpt">@_searchResult.Count نتیجه (@_searchResult.Time میلی ثانیه) </p>
 
         <ul>
             @foreach (var result in _paginateDocs)
             {
                 <li class="searchItem">
-                    <a href="@result.Url" target="_blank" class="searchResultLink">@result.Title</a>
+                    <a href="@result.Url" target="_blank" class="searchResultLink">
+                        @result.Title
+                        <p class="searchResultExcerpt">
+                            @if (result.Url.Length > 100)
+                            {
+                                @result.Url[..100];
+                            }
+                            else
+                            {
+                                @result.Url
+                            }
+                        </p>
+                    </a>
                     <p class="searchResultExcerpt">@result.Content</p>
-                    <p class="searchResultExcerpt">@result.We</p>
 
                 </li>
             }
@@ -42,6 +53,7 @@
         <div class="pagination">
             <ul>
                 <button class="btn btn-secondary" style="border-radius: 7px" @onclick="Previous">قبل</button>
+                <span clss="bg-gray" >@_currentPage</span>
                 <button class="btn btn-secondary" style="border-radius: 7px" @onclick="Next">بعد</button>
             </ul>
         </div>

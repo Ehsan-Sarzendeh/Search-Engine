@@ -7,7 +7,6 @@ public class Doc
     public string Url { get; set; }
     public string Title { get; set; }
     public string Content { get; set; }
-    public int We { get; set; }
 
     public Doc(string url, string title, string content)
     {

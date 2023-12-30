@@ -141,7 +141,6 @@ public class SearchService
             .Replace(" ", " ")
             .Replace("‌", " ")
             .Replace("|", "")
-            .Replace("گوشی شاپ", "")
             .Replace("x200C", "")
             .Replace("x26A1", "");
 
@@ -269,7 +268,6 @@ public class SearchService
                 Url = x.Key,
                 Title = _docs[x.Key].Title,
                 Content = _docs[x.Key].Content,
-                We = x.Value
             })
             .ToList();
 
@@ -280,7 +278,7 @@ public class SearchService
             Docs = docs,
             SearchQuery = string.Join(' ', words),
             Count = docs.Count,
-            Time = watch.ElapsedMilliseconds / 1000d,
+            Time = watch.ElapsedMilliseconds,
             Corrected = corrected
         };
     }
